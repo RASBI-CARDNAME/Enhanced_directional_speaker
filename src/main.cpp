@@ -98,7 +98,7 @@ void setup() {
 
 void loop() {
     // Crash check
-    digitalWrite(PB2 HIGH);
+    digitalWrite(PB2, HIGH);
     delay(1000);
     digitalWrite(PB2, LOW);
     delay(1000);
