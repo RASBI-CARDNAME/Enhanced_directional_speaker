@@ -91,6 +91,7 @@ void led_blink_heartbeat()
         led_on = !led_on;
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, led_on ? GPIO_PIN_SET : GPIO_PIN_RESET);
     }
+}
 /* USER CODE END 0 */
 
 /**
