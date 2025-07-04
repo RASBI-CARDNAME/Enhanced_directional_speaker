@@ -152,8 +152,8 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  led_blink_heartbeat();
     /* USER CODE BEGIN 3 */
+	  led_blink_heartbeat();
   }
   /* USER CODE END 3 */
 }
