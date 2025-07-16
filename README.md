@@ -3,8 +3,8 @@ Original Repository: [gururise/directional_speaker](https://github.com/gururise/
 Original REPO Youtube link: [YouTube](https://www.youtube.com/watch?v=9hD5FPVSsV0)
 
 The sound quality of my directional speaker has improved significantly after adding a decoupling capacitor to the TC4427 MOSFET driver.
-Additionally, I implemented an inductor-based low-pass filter (LPF).
-As a result, the circuit now includes both an active high-pass filter (HPF) and a passive LPF using an inductor. The LPF uses the transducer's capacitance as part of the filter, meaning the inductance value must be adjusted dynamically depending on the number of transducers used.
+Additionally, I added an inductor that acts as a resonant circuit with the transducer's capacitance.
+Since the transducer's capacitance is part of the resonance, the inductance value must be adjusted dynamically depending on the number of transducers used.
 
 ## Repository Contents
 1. C++ Code for STM32F103C8T6 Microcontroller
