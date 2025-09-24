@@ -431,21 +431,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	if (htim->Instance == TIM1)
 	{
-	    // Swing around the center value — calculate how far the sample deviates from the center
-	    int16_t deviation = (int16_t)adc_buffer[0] - ADC_MID_VALUE; // ADC is 12-bit, so at least 16-bit is needed. Also, the value can be negative.
+	    // Standard AM method: directly map the ADC value to a duty cycle change in the 0 ~ 900 range.
+	    // adc_buffer[0] (0~4095) -> dutyShift (0~899)
+	    int32_t dutyShift = ((int32_t)adc_buffer[0] * PWM_OVERFLOW_HALF) / 4096;
 
-	    /* Formula explanation:
-	     * dutyShift : 900 = deviation : 2048
-	     * dutyShift = (900 * deviation) / 2048
-	     * This maps the ADC range of 0–4095 to a PWM duty shift range of -900 to +900.
-	     * Decimal precision is meaningless in PWM (digital modulation), so it's ignored.
-	     */
-	    int32_t dutyShift = ((int32_t)deviation * PWM_OVERFLOW_HALF) / ADC_MID_VALUE;
-
-	    // Calculate the final amount of modulation, based on center value 900
+	    // Add the change to the 50% duty cycle (900).
+	    // This ensures that the final duty cycle stays within the 900 ~ 1799 range (50% ~ 100%).
 	    int32_t pwmDuty_32 = (PWM_OVERFLOW_HALF) + dutyShift;
 
-	    // Clamp the modulation to stay within valid range
+	    // (Optional) Clamping just in case. Theoretically not needed, but left for safety.
 	    if (pwmDuty_32 < 0) {
 	        pwmDuty_32 = 0;
 	    } else if (pwmDuty_32 >= PWM_OVERFLOW) {
@@ -493,3 +487,4 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+
