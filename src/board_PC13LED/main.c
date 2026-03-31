@@ -1,33 +1,19 @@
 /* USER CODE BEGIN Header */
 /**
-=========================================================================
-  Ultrasonic Parametric Speaker Source Code for STM32
-  Copyright (C) 2019,2020 Gene Ruebsamen
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-==========================================================================
-  Modified by: RASBI
-  Date: 2025-07-03
-  Description:
-
-  Final version with dual driver support and improved DSB-SC modulation.
-  This code made for stm32cube IDE.
-
-  if your bule-pill board have different built-in LED, you need to change .ioc setting.
-
-==========================================================================
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2026 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
+  ******************************************************************************
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
@@ -40,14 +26,24 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+/* ADC State define */
+typedef enum {
+	ADC_STATE_NONE,
+	ADC_STATE_HALF,
+	ADC_STATE_FULL
+}ADC_DMA_state_t;
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define PWM_OVERFLOW 1800 //40KHz ARR
-#define PWM_OVERFLOW_HALF (PWM_OVERFLOW/2) // (PWM_OVERFLOW / 2)
+#define PWM_OVERFLOW 1500 //(PWM_HALF+600)
+#define PWM_HALF 900 // (PWM_ARR / 2), this is mid value of PWM duty cycle
+#define PWM_UNDERFLOW 300 // (PWM_HALF-600)
 #define ADC_MID_VALUE 2048 //ADC input range / 2 = 2048
+
+#define BUFFER_SIZE 100
+#define BUFFER_SIZE_HALF 50
 
 /* USER CODE END PD */
 
@@ -64,8 +60,8 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
-volatile uint16_t adc_buffer[1]; //DMA 전송을 위한 버퍼 생성
-
+volatile uint16_t audio_buffer[BUFFER_SIZE]; //audio signal buffer
+volatile ADC_DMA_state_t adc_conv_flag = ADC_STATE_NONE;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -77,21 +73,49 @@ static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
+/*Check MCU Status*/
+static inline void Heartbeat();
+
+/* caculate PWM duty cycle */
+static inline void audio_dsp(uint16_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void led_blink_heartbeat()
-{
-    static uint32_t last_tick = 0;
-    static uint8_t led_on = 0;
 
-    if (HAL_GetTick() - last_tick >= 500) {
-        last_tick = HAL_GetTick();
-        led_on = !led_on;
-        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, led_on ? GPIO_PIN_SET : GPIO_PIN_RESET);
-    }
+/*Check MCU Status*/
+static inline void Heartbeat() {
+	static uint32_t prev_tick_val = 0;
+
+	if (HAL_GetTick() - prev_tick_val > 500) {
+		prev_tick_val = HAL_GetTick();
+		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+	}
 }
+
+static inline void audio_dsp(uint16_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size) {
+
+	/* array for save calculation result */
+	static int32_t deviation;
+
+	/* caculate PWM deviation */
+	for (int i = start_index; i<last_index+1; i++) {
+		deviation = (((buf[i]-ADC_MID_VALUE)*600)>>11)+PWM_HALF;
+
+		/* check value */
+		if (deviation > PWM_OVERFLOW) {
+			deviation = PWM_OVERFLOW;
+		} else if (deviation < PWM_UNDERFLOW) {
+			deviation = PWM_UNDERFLOW;
+		}
+
+		/* final pwm_out */
+		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1,(uint16_t)deviation);
+		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2,(uint16_t)deviation);
+	}
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -111,6 +135,18 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  /* Start PWM Output */
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_1);
+
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
+
+  /* Start TIM_3 */
+  HAL_TIM_Base_Start(&htim3);
+
+  /* Start ADC with DMA */
+  HAL_ADC_Start_DMA(&hadc1, audio_buffer, BUFFER_SIZE);
 
   /* USER CODE END Init */
 
@@ -128,23 +164,7 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-  //initializing code
-  //TIM1 CH1 start define
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_1);
 
-  //TIM1 CH2 start define
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
-  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
-
-  //TIM3 start define
-  HAL_TIM_Base_Start(&htim3);
-
-  //start ADC with DMA
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buffer, 1);
-
-  //start timer1`s update event
-  HAL_TIM_Base_Start_IT(&htim1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -153,7 +173,26 @@ int main(void)
   {
     /* USER CODE END WHILE */
     /* USER CODE BEGIN 3 */
-	  led_blink_heartbeat();
+	  Heartbeat();
+
+	  /* PWM duty cycle Calculation */
+	  if (adc_conv_flag != ADC_STATE_NONE) {
+		  ADC_DMA_state_t current_flag = adc_conv_flag;
+		  adc_conv_flag = ADC_STATE_NONE;
+		  switch(current_flag) {
+		  case ADC_STATE_HALF:
+			  //audio_buffer[0]-[49]
+			  audio_dsp(audio_buffer,0,BUFFER_SIZE_HALF-1, BUFFER_SIZE_HALF);
+			  break;
+		  case ADC_STATE_FULL:
+			  //audio_buffer[50]-[99]
+			  audio_dsp(audio_buffer,BUFFER_SIZE_HALF,BUFFER_SIZE-1, BUFFER_SIZE_HALF);
+			  break;
+		  default:
+			  break;
+		  }
+	  }
+
   }
   /* USER CODE END 3 */
 }
@@ -240,7 +279,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_7;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_13CYCLES_5;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -277,7 +316,7 @@ static void MX_TIM1_Init(void)
   htim1.Init.Period = 1799;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
-  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
@@ -364,7 +403,7 @@ static void MX_TIM3_Init(void)
     Error_Handler();
   }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_ENABLE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
@@ -410,14 +449,14 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(built_in_LED_GPIO_Port, built_in_LED_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : PC13 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  /*Configure GPIO pin : built_in_LED_Pin */
+  GPIO_InitStruct.Pin = built_in_LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(built_in_LED_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -425,35 +464,14 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-//interrupt function define
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-	if (htim->Instance == TIM1)
-	{
-	    // Standard AM method: directly map the ADC value to a duty cycle change in the 0 ~ 900 range.
-	    // adc_buffer[0] (0~4095) -> dutyShift (0~899)
-	    int32_t dutyShift = ((int32_t)adc_buffer[0] * PWM_OVERFLOW_HALF) / 4096;
-
-	    // Add the change to the 50% duty cycle (900).
-	    // This ensures that the final duty cycle stays within the 900 ~ 1799 range (50% ~ 100%).
-	    int32_t pwmDuty_32 = (PWM_OVERFLOW_HALF) + dutyShift;
-
-	    // (Optional) Clamping just in case. Theoretically not needed, but left for safety.
-	    if (pwmDuty_32 < 0) {
-	        pwmDuty_32 = 0;
-	    } else if (pwmDuty_32 >= PWM_OVERFLOW) {
-	        pwmDuty_32 = PWM_OVERFLOW - 1;
-	    }
-
-	    // Always cast to correct type before output. PWM duty cannot be negative.
-	    uint16_t Final_output_PWM = (uint16_t)pwmDuty_32;
-
-	    // Final output
-	    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, Final_output_PWM);
-	    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, Final_output_PWM);
-	}
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc){
+	adc_conv_flag = ADC_STATE_HALF;
 }
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
+	adc_conv_flag = ADC_STATE_FULL;
+}
+
 /* USER CODE END 4 */
 
 /**
@@ -470,8 +488,7 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
-
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.
@@ -487,4 +504,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
