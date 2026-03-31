@@ -1,33 +1,19 @@
 /* USER CODE BEGIN Header */
 /**
-=========================================================================
-  Ultrasonic Parametric Speaker Source Code for STM32
-  Copyright (C) 2019,2020 Gene Ruebsamen
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-==========================================================================
-  Modified by: RASBI
-  Date: 2026-03-31
-  Description:
-
-  Final version with dual driver support and improved modulation.
-  This code made for stm32cube IDE.
-
-  if your bule-pill board have different built-in LED, you need to change .ioc setting.
-
-==========================================================================
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2026 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
+  ******************************************************************************
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
@@ -74,7 +60,7 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
-volatile uint32_t audio_buffer[BUFFER_SIZE]; //audio signal buffer
+volatile uint16_t audio_buffer[BUFFER_SIZE]; //audio signal buffer
 volatile ADC_DMA_state_t adc_conv_flag = ADC_STATE_NONE;
 /* USER CODE END PV */
 
@@ -91,7 +77,7 @@ static void MX_TIM3_Init(void);
 static inline void Heartbeat();
 
 /* caculate PWM duty cycle */
-static inline void audio_dsp(volatile uint32_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size);
+static inline void audio_dsp(volatile uint16_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size);
 
 /* USER CODE END PFP */
 
@@ -108,14 +94,14 @@ static inline void Heartbeat() {
 	}
 }
 
-static inline void audio_dsp(volatile uint32_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size) {
+static inline void audio_dsp(volatile uint16_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size) {
 
 	/* array for save calculation result */
 	static int32_t deviation;
 
 	/* caculate PWM deviation */
 	for (int i = start_index; i<last_index+1; i++) {
-		deviation = (((buf[i]-ADC_MID_VALUE)*600)>>11)+PWM_HALF;
+		deviation = ((((int32_t)buf[i]-(int32_t)ADC_MID_VALUE)*600)>>11)+PWM_HALF;
 
 		/* check value */
 		if (deviation > PWM_OVERFLOW) {
@@ -149,18 +135,6 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  /* Start PWM Output */
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_1);
-
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
-  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
-
-  /* Start TIM_3 */
-  HAL_TIM_Base_Start(&htim3);
-
-  /* Start ADC with DMA */
-  HAL_ADC_Start_DMA(&hadc1, audio_buffer, BUFFER_SIZE);
 
   /* USER CODE END Init */
 
@@ -178,6 +152,18 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+  /* Start PWM Output */
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_1);
+
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
+
+  /* Start TIM_3 */
+  HAL_TIM_Base_Start(&htim3);
+
+  /* Start ADC with DMA */
+  HAL_ADC_Start_DMA(&hadc1, audio_buffer, BUFFER_SIZE);
 
   /* USER CODE END 2 */
 
