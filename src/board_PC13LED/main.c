@@ -60,7 +60,7 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
-volatile uint16_t audio_buffer[BUFFER_SIZE]; //audio signal buffer
+volatile uint32_t audio_buffer[BUFFER_SIZE]; //audio signal buffer
 volatile ADC_DMA_state_t adc_conv_flag = ADC_STATE_NONE;
 /* USER CODE END PV */
 
@@ -77,7 +77,7 @@ static void MX_TIM3_Init(void);
 static inline void Heartbeat();
 
 /* caculate PWM duty cycle */
-static inline void audio_dsp(volatile uint16_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size);
+static inline void audio_dsp(volatile uint32_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size);
 
 /* USER CODE END PFP */
 
@@ -94,7 +94,7 @@ static inline void Heartbeat() {
 	}
 }
 
-static inline void audio_dsp(volatile uint16_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size) {
+static inline void audio_dsp(volatile uint32_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size) {
 
 	/* array for save calculation result */
 	static int32_t deviation;
@@ -172,6 +172,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+
     /* USER CODE BEGIN 3 */
 	  Heartbeat();
 
@@ -443,7 +444,6 @@ static void MX_GPIO_Init(void)
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -454,7 +454,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin : built_in_LED_Pin */
   GPIO_InitStruct.Pin = built_in_LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(built_in_LED_GPIO_Port, &GPIO_InitStruct);
 
