@@ -77,7 +77,7 @@ static void MX_TIM3_Init(void);
 static inline void Heartbeat();
 
 /* caculate PWM duty cycle */
-static inline void audio_dsp(uint16_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size);
+static inline void audio_dsp(volatile uint16_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size);
 
 /* USER CODE END PFP */
 
@@ -94,7 +94,7 @@ static inline void Heartbeat() {
 	}
 }
 
-static inline void audio_dsp(uint16_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size) {
+static inline void audio_dsp(volatile uint16_t *buf, uint16_t start_index, uint16_t last_index, size_t cal_size) {
 
 	/* array for save calculation result */
 	static int32_t deviation;
