@@ -183,11 +183,11 @@ int main(void)
 		  switch(current_flag) {
 		  case ADC_STATE_HALF:
 			  //audio_buffer[0]-[49]
-			  audio_dsp(audio_buffer,0,BUFFER_SIZE_HALF-1, BUFFER_SIZE_HALF);
+			  audio_dsp(audio_buffer,0,BUFFER_SIZE_HALF, BUFFER_SIZE_HALF);
 			  break;
 		  case ADC_STATE_FULL:
 			  //audio_buffer[50]-[99]
-			  audio_dsp(audio_buffer,BUFFER_SIZE_HALF,BUFFER_SIZE-1, BUFFER_SIZE_HALF);
+			  audio_dsp(audio_buffer,BUFFER_SIZE_HALF,BUFFER_SIZE, BUFFER_SIZE_HALF);
 			  break;
 		  default:
 			  break;
